@@ -242,7 +242,7 @@ const WEEK = ["일","월","화","수","목","금","토"];
 let DB = { places:[], shopping:[], baby:[], checklist:[], settings:{} };
 let TAB = "places";
 let ME = localStorage.getItem("fuk_me") || "";
-let filters = { placeCat:"전체", placeBaby:"전체", placeSearch:"", shopCat:"전체", checkOwner:"공통" };
+let filters = { placeCat:"전체", placeBaby:"전체", placeSearch:"", shopCat:"전체", shopOwner:"전체", checkOwner:"공통" };
 
 /* ---------- 유틸 ---------- */
 const $ = s => document.querySelector(s);
@@ -381,16 +381,21 @@ function itinItem(p){
 
 /* ---------- 쇼핑 탭 ---------- */
 function renderShop(m){
-  const items = DB.shopping;
-  const total = items.reduce((s,i)=>s+(Number(i.price)||0)*(Number(i.qty)||1),0);
-  const done = items.filter(i=>i.bought===true||i.bought==="TRUE").length;
+  const SHOP_OWNERS = ["광주댁","은평댁"];
+  const OWN_LABEL = { "광주댁":"👵 광주댁", "은평댁":"👶 은평댁" };
+  const selOwn = filters.shopOwner || "전체";
+  let scoped = selOwn==="전체" ? DB.shopping : DB.shopping.filter(i=>i.owner===selOwn);
+  const total = scoped.reduce((s,i)=>s+(Number(i.price)||0)*(Number(i.qty)||1),0);
+  const done = scoped.filter(i=>i.bought===true||i.bought==="TRUE").length;
+  const ownBtns = ["전체",...SHOP_OWNERS].map(o=>`<button data-f="shopOwner" data-v="${o}" class="${selOwn===o?"on":""}">${o==="전체"?"전체":OWN_LABEL[o]}</button>`).join("");
   const catBtns = ["전체",...SHOP_CATS].map(c=>`<button data-f="shopCat" data-v="${c}" class="${filters.shopCat===c?"on":""}">${c}</button>`).join("");
-  let list = items.slice().reverse();
+  let list = scoped.slice().reverse();
   if(filters.shopCat!=="전체") list=list.filter(i=>i.category===filters.shopCat);
   m.innerHTML = `
-    <div class="section-h"><h2>쇼핑 · 용품</h2><span class="count">${items.length}개</span></div>
+    <div class="section-h"><h2>쇼핑 · 용품</h2><span class="count">${scoped.length}개</span></div>
+    <div class="filters">${ownBtns}</div>
     <div class="summary">
-      <div class="s"><div class="k">전체</div><div class="v">${items.length}개</div></div>
+      <div class="s"><div class="k">${selOwn==="전체"?"전체":selOwn}</div><div class="v">${scoped.length}개</div></div>
       <div class="s"><div class="k">구매완료</div><div class="v">${done}개</div></div>
       <div class="s yen"><div class="k">예상 합계</div><div class="v">${yen(total)}</div></div>
     </div>
@@ -409,7 +414,7 @@ function shopCard(i){
       <div style="display:flex; gap:11px; align-items:center">
         <div class="check ${bought?"on":""}" data-act="toggleBought">${bought?"✓":""}</div>
         <div><div class="card-title ${bought?"strike":""}" style="font-size:15px">${esc(i.item)}${q>1?` <span style="color:var(--muted); font-size:13px">×${q}</span>`:""}</div>
-        <div class="meta-row" style="margin-top:5px">${i.category?`<span class="tag cat">${esc(i.category)}</span>`:""}${i.addedBy?`<span class="tag who">· ${esc(i.addedBy)}</span>`:""}</div></div>
+        <div class="meta-row" style="margin-top:5px">${i.owner?`<span class="tag region">${esc(i.owner)}</span>`:""}${i.category?`<span class="tag cat">${esc(i.category)}</span>`:""}${i.addedBy?`<span class="tag who">· ${esc(i.addedBy)}</span>`:""}</div></div>
       </div>
       <div style="font-family:'Gowun Dodum'; color:var(--amber); font-weight:700; white-space:nowrap">${i.price?yen(line):""}</div>
     </div>
@@ -546,11 +551,12 @@ function sheetPlace(){
 }
 function sheetShop(){
   $("#sheetBody").innerHTML = `<h3>쇼핑 · 용품 추가</h3>
-    <div class="field"><label>품목</label><input id="f_item" placeholder="예) 곤약젤리"></div>
     <div class="row2">
+      <div class="field"><label>누구 쇼핑</label><select id="f_owner"><option>광주댁</option><option>은평댁</option></select></div>
       <div class="field"><label>분류</label><select id="f_cat">${SHOP_CATS.map(c=>`<option>${c}</option>`).join("")}</select></div>
-      <div class="field"><label>수량</label><input type="number" id="f_qty" value="1" min="1"></div>
     </div>
+    <div class="field"><label>품목</label><input id="f_item" placeholder="예) 곤약젤리"></div>
+    <div class="field"><label>수량</label><input type="number" id="f_qty" value="1" min="1"></div>
     <div class="field"><label>예상가격 (¥) · 직접 입력하거나 아래로 검색</label>
       <input type="number" id="f_price" placeholder="비워둬도 됨">
       <div class="pr-btns">
@@ -562,13 +568,14 @@ function sheetShop(){
     </div>
     <div class="field"><label>메모 (선택)</label><input id="f_memo" placeholder="어디서 살지 등"></div>
     <button class="primary" id="f_save">추가하기</button>`;
+  if(filters.shopOwner==="광주댁"||filters.shopOwner==="은평댁"){ $("#f_owner").value = filters.shopOwner; }
   const box=$("#pr_results");
   $("#pr_rakuten").onclick=()=>runPriceSearch($("#f_item").value.trim(),"rakuten",box,(p)=>{$("#f_price").value=p; toast("가격 입력됨 · "+yen(p));});
   $("#pr_donki").onclick=()=>runPriceSearch($("#f_item").value.trim(),"donki",box,(p)=>{$("#f_price").value=p; toast("돈키 가격 · "+yen(p));});
   $("#pr_donkilink").onclick=()=>{ const q=$("#f_item").value.trim(); if(!q) return toast("품목을 먼저 입력하세요"); window.open("https://www.google.com/search?q="+encodeURIComponent("ドンキ 情熱価格 "+q),"_blank"); };
   $("#f_save").onclick=async()=>{
     const item=$("#f_item").value.trim(); if(!item) return toast("품목을 입력해주세요");
-    await addItem("shopping",{ item, category:$("#f_cat").value, price:$("#f_price").value||0,
+    await addItem("shopping",{ item, owner:$("#f_owner").value, category:$("#f_cat").value, price:$("#f_price").value||0,
       qty:$("#f_qty").value||1, memo:$("#f_memo").value.trim(), bought:false, addedBy:ME });
   };
 }
