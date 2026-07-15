@@ -57,9 +57,9 @@ input,select,textarea{font-family:inherit; font-size:16px}
 /* ---------- tabs ---------- */
 .tabbar{position:fixed; left:0; right:0; bottom:0; z-index:40; background:rgba(255,255,255,.94);
   backdrop-filter:blur(8px); border-top:1px solid var(--line); display:flex; padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
-.tabbar button{flex:1; background:none; border:none; padding:8px 2px 6px; border-radius:12px;
-  display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--muted); font-size:11px}
-.tabbar button .ic{font-size:20px; line-height:1}
+.tabbar button{flex:1; background:none; border:none; padding:8px 1px 6px; border-radius:12px;
+  display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--muted); font-size:10px}
+.tabbar button .ic{font-size:19px; line-height:1}
 .tabbar button.active{color:var(--pine)}
 .tabbar button.active .ic{transform:translateY(-1px)}
 
@@ -123,6 +123,18 @@ main{max-width:640px; margin:0 auto; padding:16px 14px 24px}
   border-radius:14px; padding:12px 13px; margin-bottom:8px; box-shadow:var(--shadow)}
 .itin-item .time{font-family:"Gowun Dodum"; font-size:13px; color:var(--amber); min-width:44px; padding-top:1px}
 .itin-item .nm{font-weight:600; font-size:15px}
+/* checklist */
+.own-h{display:flex; align-items:center; gap:10px; margin:20px 0 10px}
+.own-h .nm{font-family:"Gowun Dodum"; font-size:16px; color:var(--pine)}
+.own-h .pct{font-size:12px; color:var(--muted); margin-left:auto}
+.bar{height:7px; border-radius:99px; background:#E9EDEB; overflow:hidden; margin-bottom:12px}
+.bar > i{display:block; height:100%; background:var(--pine); border-radius:99px; transition:.3s}
+.ck{display:flex; align-items:center; gap:11px; background:var(--card); border:1px solid var(--line);
+  border-radius:12px; padding:11px 12px; margin-bottom:7px; box-shadow:var(--shadow)}
+.ck .txt{flex:1; font-size:14.5px}
+.ck.on .txt{text-decoration:line-through; color:var(--muted)}
+.ck .cat{font-size:11px; color:var(--muted); background:#F1F0EA; padding:2px 7px; border-radius:7px}
+.ck .x{border:none; background:none; color:var(--muted); font-size:17px; padding:0 2px}
 .empty{text-align:center; color:var(--muted); font-size:14px; padding:34px 16px; border:1px dashed var(--line); border-radius:14px}
 .empty b{display:block; color:var(--ink); font-family:"Gowun Dodum"; font-size:16px; margin-bottom:6px}
 
@@ -189,6 +201,7 @@ main{max-width:640px; margin:0 auto; padding:16px 14px 24px}
   <button data-tab="itin"><span class="ic">🗓️</span>일정</button>
   <button data-tab="shop"><span class="ic">🛍️</span>쇼핑</button>
   <button data-tab="baby"><span class="ic">👶</span>아기</button>
+  <button data-tab="check"><span class="ic">🧳</span>준비물</button>
   <button data-tab="settings"><span class="ic">⚙️</span>설정</button>
 </nav>
 
@@ -211,7 +224,7 @@ const INFO_CATS  = ["준비물","시설","이동","식당","기타"];
 const WEEK = ["일","월","화","수","목","금","토"];
 
 /* ---------- 상태 ---------- */
-let DB = { places:[], shopping:[], baby:[], settings:{} };
+let DB = { places:[], shopping:[], baby:[], checklist:[], settings:{} };
 let TAB = "places";
 let ME = localStorage.getItem("fuk_me") || "";
 let filters = { placeCat:"전체", placeBaby:"전체", placeSearch:"", shopCat:"전체" };
@@ -243,7 +256,7 @@ async function loadAll(){
   $("#syncTxt").textContent = "동기화 중…";
   try{
     const d = await api({action:"getAll"});
-    DB = { places:d.places||[], shopping:d.shopping||[], baby:d.baby||[], settings:d.settings||{} };
+    DB = { places:d.places||[], shopping:d.shopping||[], baby:d.baby||[], checklist:d.checklist||[], settings:d.settings||{} };
     $("#syncTxt").textContent = "동기화됨";
     renderHeader(); render();
   }catch(e){
@@ -276,6 +289,7 @@ function render(){
   else if(TAB==="itin") renderItin(m);
   else if(TAB==="shop") renderShop(m);
   else if(TAB==="baby") renderBaby(m);
+  else if(TAB==="check") renderChecklist(m);
   else if(TAB==="settings") renderSettings(m);
 }
 
@@ -418,6 +432,46 @@ function infoCard(i){
       <button class="mini danger" data-act="del" style="margin-left:auto">삭제</button></div></div>`;
 }
 
+/* ---------- 준비물 탭 ---------- */
+const OWNERS = ["공통","광주댁","은평댁"];
+function isChecked(c){ return c.checked===true||c.checked==="TRUE"; }
+function renderChecklist(m){
+  const all = DB.checklist;
+  let html = `<div class="section-h"><h2>여행 준비물</h2><span class="count">${all.length}개</span></div>`;
+  OWNERS.forEach(owner=>{
+    const items = all.filter(c=>c.owner===owner);
+    const done = items.filter(isChecked).length;
+    const pct = items.length ? Math.round(done/items.length*100) : 0;
+    html += `<div class="own-h"><span class="nm">${owner==="공통"?"🧺 공통":owner==="광주댁"?"👵 광주댁":"👶 은평댁"}</span>
+      <span class="pct">${done}/${items.length}</span></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>`;
+    if(!items.length){ html += `<div class="empty" style="padding:16px; margin-bottom:8px">＋ 로 항목을 추가해보세요.</div>`; return; }
+    // 카테고리별 정렬(입력 순 유지)
+    html += items.map(c=>`<div class="ck ${isChecked(c)?"on":""}" data-id="${c.id}">
+        <div class="check ${isChecked(c)?"on":""}" data-act="toggleCheck">${isChecked(c)?"✓":""}</div>
+        <div class="txt">${esc(c.item)}${c.note?` <span style="color:var(--muted); font-size:12px">· ${esc(c.note)}</span>`:""}</div>
+        ${c.category?`<span class="cat">${esc(c.category)}</span>`:""}
+        <button class="x" data-act="del">✕</button></div>`).join("");
+  });
+  m.innerHTML = html;
+}
+function sheetChecklist(){
+  const cats = ["서류·돈","전자","위생·약","의류","아기식사","아기위생","아기이동","기타"];
+  $("#sheetBody").innerHTML = `<h3>준비물 추가</h3>
+    <div class="row2">
+      <div class="field"><label>누구 짐</label><select id="f_owner">${OWNERS.map(o=>`<option>${o}</option>`).join("")}</select></div>
+      <div class="field"><label>분류 (선택)</label><select id="f_cat"><option value=""></option>${cats.map(c=>`<option>${c}</option>`).join("")}</select></div>
+    </div>
+    <div class="field"><label>항목</label><input id="f_item" placeholder="예) 아기 손톱깎이"></div>
+    <div class="field"><label>메모 (선택)</label><input id="f_note" placeholder="수량·구입처 등"></div>
+    <button class="primary" id="f_save">추가하기</button>`;
+  $("#f_save").onclick=async()=>{
+    const item=$("#f_item").value.trim(); if(!item) return toast("항목을 입력해주세요");
+    await addItem("checklist",{ owner:$("#f_owner").value, item, category:$("#f_cat").value,
+      checked:false, note:$("#f_note").value.trim(), addedBy:ME });
+  };
+}
+
 /* ---------- 설정 탭 ---------- */
 function renderSettings(m){
   const s = DB.settings;
@@ -446,6 +500,7 @@ function openSheet(){
   if(TAB==="places") sheetPlace();
   else if(TAB==="shop") sheetShop();
   else if(TAB==="baby") sheetBaby();
+  else if(TAB==="check") sheetChecklist();
   showSheet();
 }
 function showSheet(){ $("#scrim").classList.add("show"); $("#sheet").classList.add("show"); }
@@ -521,9 +576,10 @@ $("#main").addEventListener("click", e=>{
   const card=e.target.closest("[data-id]"); if(!card) return;
   const id=card.dataset.id; const act=(e.target.closest("[data-act]")||{}).dataset?.act;
 
-  if(act==="del"){ const type = TAB==="shop"?"shopping":(TAB==="baby"?"baby":"places"); delItem(type,id); }
+  if(act==="del"){ const type = TAB==="shop"?"shopping":(TAB==="baby"?"baby":(TAB==="check"?"checklist":"places")); delItem(type,id); }
   else if(act==="toggleStatus"){ const p=DB.places.find(x=>x.id==id); updateItem("places",{id,status:p.status==="확정"?"위시":"확정"}); }
   else if(act==="toggleBought"){ const i=DB.shopping.find(x=>x.id==id); const b=i.bought===true||i.bought==="TRUE"; updateItem("shopping",{id,bought:!b}); }
+  else if(act==="toggleCheck"){ const c=DB.checklist.find(x=>x.id==id); const v=c.checked===true||c.checked==="TRUE"; updateItem("checklist",{id,checked:!v}); }
   else if(act==="editShop"){ editShopPrice(id); }
 });
 $("#main").addEventListener("change", e=>{
