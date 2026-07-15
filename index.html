@@ -165,6 +165,15 @@ main{max-width:640px; margin:0 auto; padding:16px 14px 24px}
   font-size:15px; font-weight:600; margin-top:4px}
 .primary:disabled{opacity:.5}
 
+/* price search */
+.pr-btns{display:flex; gap:7px; margin-top:8px; flex-wrap:wrap}
+.pr-row{width:100%; text-align:left; display:flex; align-items:center; gap:10px; background:var(--card);
+  border:1px solid var(--line); border-radius:11px; padding:10px 12px; margin-top:7px}
+.pr-row .pr-nm{flex:1; font-size:13px; color:var(--ink); line-height:1.35;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+.pr-row .pr-pr{font-family:"Gowun Dodum"; color:var(--amber); font-weight:700; white-space:nowrap; font-size:15px}
+.pr-hint{color:var(--muted); font-size:12.5px; padding:8px 2px}
+
 /* toast */
 .toast{position:fixed; left:50%; bottom:calc(96px + env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(20px);
   background:var(--ink); color:#fff; padding:11px 18px; border-radius:999px; font-size:13.5px; z-index:60;
@@ -402,7 +411,7 @@ function shopCard(i){
     <div class="card-actions">
       <a class="mini link" href="${amzn}" target="_blank" rel="noopener">🛒 아마존JP</a>
       <a class="mini link" href="${goog}" target="_blank" rel="noopener">🔎 가격검색</a>
-      <button class="mini" data-act="editShop">가격입력</button>
+      <button class="mini" data-act="priceLookup">💴 가격찾기</button>
       <button class="mini danger" data-act="del">삭제</button>
     </div></div>`;
 }
@@ -532,14 +541,40 @@ function sheetShop(){
       <div class="field"><label>분류</label><select id="f_cat">${SHOP_CATS.map(c=>`<option>${c}</option>`).join("")}</select></div>
       <div class="field"><label>수량</label><input type="number" id="f_qty" value="1" min="1"></div>
     </div>
-    <div class="field"><label>예상가격 (¥, 선택)</label><input type="number" id="f_price" placeholder="아직 모르면 비워두세요"></div>
+    <div class="field"><label>예상가격 (¥) · 직접 입력하거나 아래로 검색</label>
+      <input type="number" id="f_price" placeholder="비워둬도 됨">
+      <div class="pr-btns">
+        <button type="button" class="mini link" id="pr_rakuten">🔍 라쿠텐</button>
+        <button type="button" class="mini" id="pr_donki" style="color:var(--amber); border-color:#E6CF9A">🟡 돈키</button>
+        <button type="button" class="mini link" id="pr_donkilink">🔗 돈키공식</button>
+      </div>
+      <div id="pr_results"></div>
+    </div>
     <div class="field"><label>메모 (선택)</label><input id="f_memo" placeholder="어디서 살지 등"></div>
     <button class="primary" id="f_save">추가하기</button>`;
+  const box=$("#pr_results");
+  $("#pr_rakuten").onclick=()=>runPriceSearch($("#f_item").value.trim(),"rakuten",box,(p)=>{$("#f_price").value=p; toast("가격 입력됨 · "+yen(p));});
+  $("#pr_donki").onclick=()=>runPriceSearch($("#f_item").value.trim(),"donki",box,(p)=>{$("#f_price").value=p; toast("돈키 가격 · "+yen(p));});
+  $("#pr_donkilink").onclick=()=>{ const q=$("#f_item").value.trim(); if(!q) return toast("품목을 먼저 입력하세요"); window.open("https://www.google.com/search?q="+encodeURIComponent("ドンキ 情熱価格 "+q),"_blank"); };
   $("#f_save").onclick=async()=>{
     const item=$("#f_item").value.trim(); if(!item) return toast("품목을 입력해주세요");
     await addItem("shopping",{ item, category:$("#f_cat").value, price:$("#f_price").value||0,
       qty:$("#f_qty").value||1, memo:$("#f_memo").value.trim(), bought:false, addedBy:ME });
   };
+}
+
+/* 라쿠텐 가격검색 공통 헬퍼 */
+async function runPriceSearch(keyword, mode, container, onPick){
+  if(!keyword){ toast("품목을 먼저 입력하세요"); return; }
+  container.innerHTML = `<div class="pr-hint">라쿠텐에서 찾는 중…</div>`;
+  try{
+    const d = await api({action:"priceSearch", keyword, mode});
+    const items = d.items||[];
+    if(!items.length){ container.innerHTML = `<div class="pr-hint">결과가 없어요. 다른 이름(일본어 병기 등)으로 검색해보세요.</div>`; return; }
+    container.innerHTML = items.map((it,idx)=>`<button type="button" class="pr-row" data-idx="${idx}">
+        <span class="pr-nm">${esc(it.name)}</span><span class="pr-pr">${yen(it.price)}</span></button>`).join("");
+    container.querySelectorAll(".pr-row").forEach(b=>{ b.onclick=()=>{ const it=items[+b.dataset.idx]; onPick(it.price, it.shop); }; });
+  }catch(e){ container.innerHTML = `<div class="pr-hint" style="color:var(--rose)">검색 실패: ${esc(e.message)}</div>`; }
 }
 function sheetBaby(){
   $("#sheetBody").innerHTML = `<h3>아기 메모 추가</h3>
@@ -580,7 +615,7 @@ $("#main").addEventListener("click", e=>{
   else if(act==="toggleStatus"){ const p=DB.places.find(x=>x.id==id); updateItem("places",{id,status:p.status==="확정"?"위시":"확정"}); }
   else if(act==="toggleBought"){ const i=DB.shopping.find(x=>x.id==id); const b=i.bought===true||i.bought==="TRUE"; updateItem("shopping",{id,bought:!b}); }
   else if(act==="toggleCheck"){ const c=DB.checklist.find(x=>x.id==id); const v=c.checked===true||c.checked==="TRUE"; updateItem("checklist",{id,checked:!v}); }
-  else if(act==="editShop"){ editShopPrice(id); }
+  else if(act==="priceLookup"){ sheetPriceLookup(id); }
 });
 $("#main").addEventListener("change", e=>{
   const sel=e.target.closest("[data-act='setDay']"); if(!sel) return;
@@ -599,11 +634,27 @@ $("#main").addEventListener("input", e=>{
     }
   }
 });
-function editShopPrice(id){
-  const i=DB.shopping.find(x=>x.id==id); if(!i) return;
-  const p=prompt(`"${i.item}" 예상가격 (¥)`, i.price||"");
-  if(p===null) return; const q=prompt("수량", i.qty||1); if(q===null) return;
-  updateItem("shopping",{id, price:Number(p)||0, qty:Number(q)||1});
+function sheetPriceLookup(id){
+  const it=DB.shopping.find(x=>x.id==id); if(!it) return;
+  $("#sheetBody").innerHTML = `<h3>가격 찾기</h3>
+    <div class="field"><label>품목 (수정 가능)</label><input id="pl_item" value="${esc(it.item)}"></div>
+    <div class="pr-btns">
+      <button type="button" class="mini link" id="pl_rakuten">🔍 라쿠텐</button>
+      <button type="button" class="mini" id="pl_donki" style="color:var(--amber); border-color:#E6CF9A">🟡 돈키</button>
+      <button type="button" class="mini link" id="pl_link">🔗 돈키공식</button>
+    </div>
+    <div id="pl_results" style="margin-top:8px"></div>
+    <div class="row2" style="margin-top:12px">
+      <div class="field"><label>가격 (¥)</label><input type="number" id="pl_price" value="${it.price||""}"></div>
+      <div class="field"><label>수량</label><input type="number" id="pl_qty" min="1" value="${it.qty||1}"></div>
+    </div>
+    <button class="primary" id="pl_save">저장</button>`;
+  const box=$("#pl_results");
+  $("#pl_rakuten").onclick=()=>runPriceSearch($("#pl_item").value.trim(),"rakuten",box,(p)=>{$("#pl_price").value=p; toast(yen(p));});
+  $("#pl_donki").onclick=()=>runPriceSearch($("#pl_item").value.trim(),"donki",box,(p)=>{$("#pl_price").value=p; toast("돈키 · "+yen(p));});
+  $("#pl_link").onclick=()=>{ const q=$("#pl_item").value.trim(); if(q) window.open("https://www.google.com/search?q="+encodeURIComponent("ドンキ 情熱価格 "+q),"_blank"); };
+  $("#pl_save").onclick=async()=>{ await updateItem("shopping",{id, price:Number($("#pl_price").value)||0, qty:Number($("#pl_qty").value)||1}); closeSheet(); toast("저장했어요"); };
+  showSheet();
 }
 
 /* ---------- 탭/FAB/멤버 ---------- */
