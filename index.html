@@ -236,7 +236,7 @@ const WEEK = ["일","월","화","수","목","금","토"];
 let DB = { places:[], shopping:[], baby:[], checklist:[], settings:{} };
 let TAB = "places";
 let ME = localStorage.getItem("fuk_me") || "";
-let filters = { placeCat:"전체", placeBaby:"전체", placeSearch:"", shopCat:"전체" };
+let filters = { placeCat:"전체", placeBaby:"전체", placeSearch:"", shopCat:"전체", checkOwner:"공통" };
 
 /* ---------- 유틸 ---------- */
 const $ = s => document.querySelector(s);
@@ -443,19 +443,23 @@ function infoCard(i){
 
 /* ---------- 준비물 탭 ---------- */
 const OWNERS = ["공통","광주댁","은평댁"];
+const OWNER_LABEL = { "공통":"🧺 공통", "광주댁":"👵 광주댁", "은평댁":"👶 은평댁" };
 function isChecked(c){ return c.checked===true||c.checked==="TRUE"; }
 function renderChecklist(m){
   const all = DB.checklist;
-  let html = `<div class="section-h"><h2>여행 준비물</h2><span class="count">${all.length}개</span></div>`;
-  OWNERS.forEach(owner=>{
+  const sel = filters.checkOwner || "전체";
+  const chips = ["전체",...OWNERS].map(o=>
+    `<button data-f="checkOwner" data-v="${o}" class="${sel===o?"on":""}">${o==="전체"?"전체":OWNER_LABEL[o]}</button>`).join("");
+  let html = `<div class="section-h"><h2>여행 준비물</h2><span class="count">${all.length}개</span></div>
+    <div class="filters">${chips}</div>`;
+  const shown = sel==="전체" ? OWNERS : [sel];
+  shown.forEach(owner=>{
     const items = all.filter(c=>c.owner===owner);
     const done = items.filter(isChecked).length;
     const pct = items.length ? Math.round(done/items.length*100) : 0;
-    html += `<div class="own-h"><span class="nm">${owner==="공통"?"🧺 공통":owner==="광주댁"?"👵 광주댁":"👶 은평댁"}</span>
-      <span class="pct">${done}/${items.length}</span></div>
+    html += `<div class="own-h"><span class="nm">${OWNER_LABEL[owner]}</span><span class="pct">${done}/${items.length}</span></div>
       <div class="bar"><i style="width:${pct}%"></i></div>`;
     if(!items.length){ html += `<div class="empty" style="padding:16px; margin-bottom:8px">＋ 로 항목을 추가해보세요.</div>`; return; }
-    // 카테고리별 정렬(입력 순 유지)
     html += items.map(c=>`<div class="ck ${isChecked(c)?"on":""}" data-id="${c.id}">
         <div class="check ${isChecked(c)?"on":""}" data-act="toggleCheck">${isChecked(c)?"✓":""}</div>
         <div class="txt">${esc(c.item)}${c.note?` <span style="color:var(--muted); font-size:12px">· ${esc(c.note)}</span>`:""}</div>
@@ -570,8 +574,9 @@ async function runPriceSearch(keyword, mode, container, onPick){
   try{
     const d = await api({action:"priceSearch", keyword, mode});
     const items = d.items||[];
-    if(!items.length){ container.innerHTML = `<div class="pr-hint">결과가 없어요. 다른 이름(일본어 병기 등)으로 검색해보세요.</div>`; return; }
-    container.innerHTML = items.map((it,idx)=>`<button type="button" class="pr-row" data-idx="${idx}">
+    if(!items.length){ container.innerHTML = `<div class="pr-hint">결과가 없어요. 다른 이름으로 검색해보세요.</div>`; return; }
+    const jp = d.translated ? `<div class="pr-hint">일본어 「${esc(d.translated)}」로 검색했어요</div>` : "";
+    container.innerHTML = jp + items.map((it,idx)=>`<button type="button" class="pr-row" data-idx="${idx}">
         <span class="pr-nm">${esc(it.name)}</span><span class="pr-pr">${yen(it.price)}</span></button>`).join("");
     container.querySelectorAll(".pr-row").forEach(b=>{ b.onclick=()=>{ const it=items[+b.dataset.idx]; onPick(it.price, it.shop); }; });
   }catch(e){ container.innerHTML = `<div class="pr-hint" style="color:var(--rose)">검색 실패: ${esc(e.message)}</div>`; }
