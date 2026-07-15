@@ -167,12 +167,18 @@ main{max-width:640px; margin:0 auto; padding:16px 14px 24px}
 
 /* price search */
 .pr-btns{display:flex; gap:7px; margin-top:8px; flex-wrap:wrap}
-.pr-row{width:100%; text-align:left; display:flex; align-items:center; gap:10px; background:var(--card);
-  border:1px solid var(--line); border-radius:11px; padding:10px 12px; margin-top:7px}
-.pr-row .pr-nm{flex:1; font-size:13px; color:var(--ink); line-height:1.35;
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
-.pr-row .pr-pr{font-family:"Gowun Dodum"; color:var(--amber); font-weight:700; white-space:nowrap; font-size:15px}
 .pr-hint{color:var(--muted); font-size:12.5px; padding:8px 2px}
+.pr-head{font-size:12.5px; color:var(--pine-2); background:#EAF1EF; border-radius:9px; padding:8px 11px; margin-top:6px}
+.pr-head b{font-family:"Gowun Dodum"}
+.pr-row{width:100%; display:flex; align-items:center; gap:11px; background:var(--card);
+  border:1px solid var(--line); border-radius:12px; padding:9px 11px; margin-top:8px; cursor:pointer}
+.pr-row:active{background:#F3F6F4}
+.pr-img{width:54px; height:54px; border-radius:9px; object-fit:cover; background:#F1F0EA; flex:none}
+.pr-mid{flex:1; min-width:0}
+.pr-nm{font-size:12px; color:var(--muted); line-height:1.35;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+.pr-open{display:inline-block; margin-top:4px; font-size:11.5px; color:var(--sea); text-decoration:none}
+.pr-pr{font-family:"Gowun Dodum"; color:var(--amber); font-weight:700; white-space:nowrap; font-size:16px}
 
 /* toast */
 .toast{position:fixed; left:50%; bottom:calc(96px + env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(20px);
@@ -578,9 +584,17 @@ async function runPriceSearch(keyword, mode, container, onPick){
     const jp = d.translated
       ? `<div class="pr-hint">🔎 일본어 <b>「${esc(d.translated)}」</b>로 검색했어요${(d.via==="auto"||d.via==="mixed")?" · 결과가 이상하면 위 품목을 일본어로 바꿔 다시 검색해보세요":""}</div>`
       : "";
-    container.innerHTML = jp + items.map((it,idx)=>`<button type="button" class="pr-row" data-idx="${idx}">
-        <span class="pr-nm">${esc(it.name)}</span><span class="pr-pr">${yen(it.price)}</span></button>`).join("");
-    container.querySelectorAll(".pr-row").forEach(b=>{ b.onclick=()=>{ const it=items[+b.dataset.idx]; onPick(it.price, it.shop); }; });
+    const head = `<div class="pr-head">📷 <b>${esc(keyword)}</b> — 사진·가격 보고 맞는 걸 탭하면 입력돼요</div>`;
+    container.innerHTML = jp + head + items.map((it,idx)=>`<div class="pr-row" data-idx="${idx}">
+        ${it.image?`<img class="pr-img" src="${esc(it.image)}" loading="lazy" onerror="this.style.visibility='hidden'">`:`<div class="pr-img"></div>`}
+        <div class="pr-mid">
+          <div class="pr-nm">${esc(it.name)}</div>
+          ${it.url?`<a class="pr-open" href="${esc(it.url)}" target="_blank" rel="noopener">🔗 라쿠텐에서 보기</a>`:""}
+        </div>
+        <div class="pr-pr">${yen(it.price)}</div></div>`).join("");
+    container.querySelectorAll(".pr-row").forEach(b=>{
+      b.addEventListener("click", e=>{ if(e.target.closest(".pr-open")) return; const it=items[+b.dataset.idx]; onPick(it.price, it.shop); });
+    });
   }catch(e){ container.innerHTML = `<div class="pr-hint" style="color:var(--rose)">검색 실패: ${esc(e.message)}</div>`; }
 }
 function sheetBaby(){
