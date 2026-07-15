@@ -575,7 +575,9 @@ async function runPriceSearch(keyword, mode, container, onPick){
     const d = await api({action:"priceSearch", keyword, mode});
     const items = d.items||[];
     if(!items.length){ container.innerHTML = `<div class="pr-hint">결과가 없어요. 다른 이름으로 검색해보세요.</div>`; return; }
-    const jp = d.translated ? `<div class="pr-hint">일본어 「${esc(d.translated)}」로 검색했어요</div>` : "";
+    const jp = d.translated
+      ? `<div class="pr-hint">🔎 일본어 <b>「${esc(d.translated)}」</b>로 검색했어요${(d.via==="auto"||d.via==="mixed")?" · 결과가 이상하면 위 품목을 일본어로 바꿔 다시 검색해보세요":""}</div>`
+      : "";
     container.innerHTML = jp + items.map((it,idx)=>`<button type="button" class="pr-row" data-idx="${idx}">
         <span class="pr-nm">${esc(it.name)}</span><span class="pr-pr">${yen(it.price)}</span></button>`).join("");
     container.querySelectorAll(".pr-row").forEach(b=>{ b.onclick=()=>{ const it=items[+b.dataset.idx]; onPick(it.price, it.shop); }; });
